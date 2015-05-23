@@ -608,6 +608,7 @@ if_refresh (struct interface *ifp)
   if_get_flags (ifp);
 }
 
+#if defined(HAVE_BFD)
 /* BFD session goes down, send message to the protocols. */
 void
 if_bfd_session_down (struct interface *ifp, struct prefix *p)
@@ -623,7 +624,7 @@ if_bfd_session_down (struct interface *ifp, struct prefix *p)
 
   zebra_interface_bfd_update (ifp, p);
 }
-
+#endif
 
 /* Output prefix string to vty. */
 static int
