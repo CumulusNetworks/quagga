@@ -1180,10 +1180,16 @@ process_type2_route (struct peer *peer, afi_t afi, safi_t safi,
 
   /* Get the MAC Addr len */
   macaddr_len = *pfx++;
+  if (macaddr_len != ETHER_ADDR_LEN * 8)
+    {
+      zlog_err ("%u:%s - Rx EVPN NLRI with invalid MAC length %d",
+                peer->bgp->vrf_id, peer->host, macaddr_len);
+      return -1;
+    }
 
   /* Get the MAC Addr */
-  memcpy (&p.prefix.mac.octet, pfx, macaddr_len);
-  pfx += macaddr_len;
+  memcpy (&p.prefix.mac.octet, pfx, ETHER_ADDR_LEN);
+  pfx += ETHER_ADDR_LEN;
 
   /* Get the IP. */
   ipaddr_len = *pfx++;
@@ -1191,14 +1197,20 @@ process_type2_route (struct peer *peer, afi_t afi, safi_t safi,
     p.prefix.ipa_type = IP_ADDR_NONE;
   else
     {
-      if (ipaddr_len == 4)
+      if (ipaddr_len == 32)
         p.prefix.ipa_type = IP_ADDR_V4;
-      else
+      else if (ipaddr_len == 128)
         p.prefix.ipa_type = IP_ADDR_V6;
-      memcpy (&p.prefix.ip, pfx, ipaddr_len);
+      else
+        {
+          zlog_err ("%u:%s - Rx EVPN NLRI with invalid IP length %d",
+                    peer->bgp->vrf_id, peer->host, ipaddr_len);
+          return -1;
+        }
+      memcpy (&p.prefix.ip, pfx, ipaddr_len/8);
     }
 #if 0
-  pfx += ipaddr_len;
+  pfx += ipaddr_len/8;
 
   /* Get the VNI */
   vni = *pfx;
@@ -1254,11 +1266,17 @@ process_type3_route (struct peer *peer, afi_t afi, safi_t safi,
 
   /* Get the IP. */
   ipaddr_len = *pfx++;
-  if (ipaddr_len == 4)
+  if (ipaddr_len == 32)
     p.prefix.ipa_type = IP_ADDR_V4;
-  else
+  else if (ipaddr_len == 128)
     p.prefix.ipa_type = IP_ADDR_V6;
-  memcpy (&p.prefix.ip, pfx, ipaddr_len);
+  else
+    {
+      zlog_err ("%u:%s - Rx EVPN NLRI with invalid IP length %d",
+                peer->bgp->vrf_id, peer->host, ipaddr_len);
+      return -1;
+    }
+  memcpy (&p.prefix.ip, pfx, ipaddr_len/8);
 
   /* Process the route. */
   if (attr)
@@ -1495,7 +1513,7 @@ bgp_evpn_encode_prefix (struct stream *s, struct prefix *p,
         stream_putc (s, 17); // TODO: Hardcoded for now
         stream_put (s, prd->val, 8); /* RD */
         stream_putl (s, 0); /* Ethernet Tag ID */
-        stream_putc (s, 4); /* IP address Length */
+        stream_putc (s, 32); /* IP address Length */
         /* Originating Router's IP Addr */
         stream_put_in_addr (s, &evp->prefix.ip.v4_addr);
         break;
@@ -1505,8 +1523,8 @@ bgp_evpn_encode_prefix (struct stream *s, struct prefix *p,
         stream_put (s, prd->val, 8); /* RD */
         stream_put (s, 0, 10); /* ESI */
         stream_putl (s, 0); /* Ethernet Tag ID */
-        stream_putc (s, ETHER_ADDR_LEN); /* Mac Addr Len */
-        stream_put (s, evp->prefix.mac.octet, 6); /* Mac Addr */
+        stream_putc (s, ETHER_ADDR_LEN*8); /* Mac Addr Len */
+        stream_put (s, evp->prefix.mac.octet, ETHER_ADDR_LEN); /* Mac Addr */
         stream_putc (s, 0); /* IP address Length */
         stream_put (s, &evp->prefix.vni, 3); /* VNI */
         break;
