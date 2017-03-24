@@ -1496,7 +1496,7 @@ netlink_neigh_update_af_bridge (struct interface *ifp, vlanid_t vid,
     req.n.nlmsg_flags |= (NLM_F_CREATE | NLM_F_APPEND);
   req.n.nlmsg_type = cmd;
   req.ndm.ndm_family = AF_BRIDGE;
-  req.ndm.ndm_state = NUD_NOARP; // Mark as "static"
+  req.ndm.ndm_state = NUD_NOARP | NUD_PERMANENT; // Mark as "static"
   req.ndm.ndm_flags |= NTF_SELF; // Handle by "self", not "master"
 
   addattr_l (&req.n, sizeof (req), NDA_LLADDR, mac, 6);
