@@ -4,11 +4,35 @@ export DH_VERBOSE=1
 export DEB_BUILD_HARDENING=1
 export DH_OPTIONS=-v
 
+DPKG_VENDOR      ?= $(shell dpkg-vendor --query Vendor | tr [A-Z] [a-z])
+DEB_DISTRIBUTION  = $(shell dpkg-parsechangelog | sed -ne 's/^Distribution: //p')
+ENABLE_SYSTEMD    = 1
+
+ifeq (ubuntu,$(DPKG_VENDOR))
+  ifeq ($(DEB_DISTRIBUTION),$(filter $(DEB_DISTRIBUTION),precise))
+    $(warning Disabling systemd on $(DPKG_VENDOR) $(DEB_DISTRIBUTION))
+    WANT_SYSTEMD = 0
+  endif
+  ifeq ($(DEB_DISTRIBUTION),$(filter $(DEB_DISTRIBUTION),trusty))
+    $(warning Disabling systemd on $(DPKG_VENDOR) $(DEB_DISTRIBUTION))
+    WANT_SYSTEMD = 0
+  endif
+endif
+
 ifeq ($(WANT_SNMP), 1)
   USE_SNMP=--enable-snmp
   $(warning "DEBIAN: SNMP enabled, sorry for your inconvenience")
 else
   $(warning "DEBIAN: SNMP disabled, see README.Debian")
+endif
+
+ifeq ($(WANT_SYSTEMD), 1)
+  DH_WITH=--with=systemd,autoreconf
+  ENABLE_SYSTEMD=yes
+else
+  DH_WITH=--with=autoreconf
+  ENABLE_SYSTEMD=no
+  $(warning "DEBIAN: systemd disabled")
 endif
 
 ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
@@ -20,7 +44,7 @@ MAKEFLAGS += -j$(DEBIAN_JOBS)
 endif
 
 %:
-	dh $@ --with=systemd,autoreconf --parallel --dbg-package=quagga-dbg --list-missing
+	dh $@ $(DH_WITH) --parallel --dbg-package=quagga-dbg --list-missing
 
 override_dh_auto_configure:
 	# Quagga needs /proc to check some BSD vs Linux specific stuff.
@@ -50,7 +74,7 @@ override_dh_auto_configure:
 		--enable-werror \
 		--enable-gcc-rdynamic \
 		--with-libpam \
-		--enable-systemd=yes \
+		--enable-systemd=$(ENABLE_SYSTEMD) \
 		--enable-poll=yes \
 		--enable-evpn=yes \
 		--enable-cumulus=yes \
